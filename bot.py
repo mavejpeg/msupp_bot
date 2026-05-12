@@ -1,6 +1,7 @@
 import logging
 import nest_asyncio
-from telegram.ext import ApplicationBuilder
+from telegram.ext import ApplicationBuilder, CommandHandler
+
 from config import BOT_TOKEN
 from database import init_db
 from scheduler import scheduler, restore_scheduled_posts
@@ -21,9 +22,9 @@ async def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(post_conversation)
     app.add_handler(queue_handler)
-    app.add_handler(CommandHandler("start", start))
     for h in admin_handlers:
         app.add_handler(h)
+    app.add_handler(CommandHandler("start", start))
 
     logger.info("Бот запущен через polling")
     await app.run_polling(drop_pending_updates=True)
