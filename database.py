@@ -1,13 +1,18 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import BigInteger, String, DateTime, Text, Integer, func
-from sqlalchemy.dialects.postgresql import JSON, ARRAY
+from sqlalchemy import BigInteger, String, DateTime, Text, Integer, func, select
+from sqlalchemy.dialects.postgresql import JSON
 from typing import Optional, List
 from datetime import datetime
+from sqlalchemy.engine import make_url
 
 from config import DATABASE_URL
 
-engine = create_async_engine(DATABASE_URL.replace("postgres://", "postgresql+asyncpg://"), echo=False)
+# Заменяем схему на postgresql+asyncpg
+url = make_url(DATABASE_URL)
+url = url.set(drivername="postgresql+asyncpg")
+
+engine = create_async_engine(url, echo=False)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 class Base(DeclarativeBase):
@@ -27,8 +32,8 @@ class ScheduledPost(Base):
     channel_id: Mapped[int] = mapped_column(BigInteger)
     channel_name: Mapped[str] = mapped_column(String(100))
     content_text: Mapped[Optional[str]] = mapped_column(Text)
-    media_file_ids: Mapped[Optional[list]] = mapped_column(JSON)  # список file_id
-    media_type: Mapped[str] = mapped_column(String(20), default="text")  # text/photo/album
+    media_file_ids: Mapped[Optional[list]] = mapped_column(JSON)
+    media_type: Mapped[str] = mapped_column(String(20), default="text")
     scheduled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     created_by: Mapped[int] = mapped_column(BigInteger)
     status: Mapped[str] = mapped_column(String(20), default="pending")
@@ -40,7 +45,8 @@ async def init_db():
 
 async def get_user(telegram_id: int) -> Optional[User]:
     async with async_session() as session:
-        return await session.get(User, telegram_id)
+        result = await session.execute(select(User).where(User.telegram_id == telegram_id))
+        return result.scalar_one_or_none()
 
 async def add_user(telegram_id: int, username: str, role: str = "editor"):
     async with async_session() as session:
@@ -58,5 +64,3 @@ async def get_pending_posts():
             )
         )
         return result.scalars().all()
-
-# и другие функции работы с постами...
