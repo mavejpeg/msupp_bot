@@ -1,7 +1,10 @@
 import logging
 import asyncio
 import nest_asyncio
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, MessageHandler, filters,
+    PicklePersistence, PersistenceInput
+)
 from telegram.error import Conflict
 
 from config import BOT_TOKEN
@@ -17,7 +20,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 async def handle_new_post_button(update, context):
-    """Обрабатывает нажатие кнопки '📝 Новая публикация' где угодно."""
     context.user_data.clear()
     await start_post(update, context)
 
@@ -26,22 +28,32 @@ async def main():
     await restore_scheduled_posts()
     scheduler.start()
 
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-    
-    # Кнопки из Reply-клавиатуры (обрабатываются всегда, даже если диалог не активен)
+    # Настройка persistence с сохранением только user_data и chat_data
+    persistence = PicklePersistence(
+        filepath="/data/bot_persistence.pkl",
+        store_data=PersistenceInput(
+            bot_data=False,
+            chat_data=True,
+            user_data=True,
+            callback_data=False,
+        )
+    )
+
+    app = ApplicationBuilder() \
+        .token(BOT_TOKEN) \
+        .persistence(persistence) \
+        .build()
+
     app.add_handler(MessageHandler(filters.Regex("^📝 Новая публикация$"), handle_new_post_button))
     app.add_handler(MessageHandler(filters.Regex("^📋 Очередь$"), show_queue))
-    
-    # Основные обработчики
     app.add_handler(post_conversation)
     app.add_handler(CommandHandler("queue", show_queue))
     for h in admin_handlers:
         app.add_handler(h)
     app.add_handler(CommandHandler("start", start))
 
-    logger.info("Бот запущен через polling")
-    
-    # Автоматический перезапуск при Conflict (если Railway не убил старый контейнер)
+    logger.info("Бот запущен через polling с persistence")
+
     while True:
         try:
             await app.run_polling(drop_pending_updates=True)
