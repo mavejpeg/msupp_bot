@@ -8,7 +8,4 @@ MAIN_KEYBOARD = ReplyKeyboardMarkup(
 )
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "Главное меню",
-        reply_markup=MAIN_KEYBOARD
-    )
+    await update.message.reply_text("Главное меню", reply_markup=MAIN_KEYBOARD)
