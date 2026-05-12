@@ -230,7 +230,6 @@ async def schedule_post(update, context, time_str):
 post_conversation = ConversationHandler(
     entry_points=[
         CommandHandler("post", start_post),
-        MessageHandler(filters.Regex("^📝 Новая публикация$"), start_post)
     ],
     states={
         CHOOSE_CHANNEL: [CallbackQueryHandler(channel_chosen, pattern=r"^ch:\d$")],
