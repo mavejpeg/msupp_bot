@@ -6,31 +6,27 @@ from telegram.constants import ParseMode
 from telegram.error import TelegramError
 from config import BOT_TOKEN, OWNER_ID, CHANNEL_1_ID, CHANNEL_2_ID, CHANNEL_3_ID, CHANNEL_1_LINK, CHANNEL_2_LINK, CHANNEL_3_LINK
 from database import async_session, ScheduledPost
-from sqlalchemy import update
 
 logger = logging.getLogger(__name__)
 bot = Bot(token=BOT_TOKEN)
 
-# Функция экранирования для Markdown
 def escape_markdown(text: str) -> str:
-    """Экранирует символы, ломающие Markdown-разметку."""
-    escape_chars = r'`\'
+    """Экранирует символы, которые могут сломать Markdown-разметку."""
+    # Экранируем только те символы, которые действительно мешают
+    escape_chars = r'_*[]()~`>#+-=|{}.!'
     return re.sub(f'([{re.escape(escape_chars)}])', r'\\\1', text)
 
-# Определения каналов
 CHANNELS = {
     1: {
         "id": CHANNEL_1_ID,
         "name": "Лайфстайл",
         "link": CHANNEL_1_LINK,
-        # Вся строка становится одной ссылкой
         "sign": f"[Артём хз | Подписаться]({CHANNEL_1_LINK})"
     },
     2: {
         "id": CHANNEL_2_ID,
         "name": "Веб-дизайн",
         "link": CHANNEL_2_LINK,
-        # Если ссылка ведет на "Arto_isme", то так и останется
         "sign": f"[Arto.ism | Подписаться]({CHANNEL_2_LINK})"
     },
     3: {
@@ -42,16 +38,17 @@ CHANNELS = {
 }
 
 async def notify_owner(text: str):
+    """Отправляет владельцу сообщение с поддержкой Markdown.
+    Вызывающий код должен экранировать переменные в тексте самостоятельно."""
     try:
-        safe_text = escape_markdown(text)
-        await bot.send_message(chat_id=OWNER_ID, text=safe_text, parse_mode=ParseMode.MARKDOWN)
+        await bot.send_message(chat_id=OWNER_ID, text=text, parse_mode=ParseMode.MARKDOWN)
     except Exception as e:
         logger.error(f"Failed to notify owner: {e}")
-        # Попытка отправить без форматирования
+        # Попробуем отправить без форматирования
         try:
             await bot.send_message(chat_id=OWNER_ID, text=text)
         except Exception as e2:
-            logger.error(f"Failed to send plain text to owner: {e2}")
+            logger.error(f"Failed completely to notify owner: {e2}")
 
 async def publish_now(post_data: dict, creator_id: int):
     ch_num = post_data["channel"]
@@ -70,9 +67,11 @@ async def publish_now(post_data: dict, creator_id: int):
             media_group[0].parse_mode = ParseMode.MARKDOWN
             await bot.send_media_group(chat_id=ch["id"], media=media_group)
         now = datetime.now().strftime("%H:%M %d.%m")
-        await notify_owner(f"✅ Пост опубликован в *{escape_markdown(ch['name'])}* в {now}")
+        safe_name = escape_markdown(ch["name"])
+        await notify_owner(f"✅ Пост опубликован в *{safe_name}* в {now}")
     except TelegramError as e:
-        await notify_owner(f"❌ Ошибка публикации в *{escape_markdown(ch['name'])}*: {str(e)}")
+        safe_name = escape_markdown(ch["name"])
+        await notify_owner(f"❌ Ошибка публикации в *{safe_name}*: {escape_markdown(str(e))}")
         raise
 
 async def publish_scheduled(post_id: int):
@@ -97,9 +96,11 @@ async def publish_scheduled(post_id: int):
             post.status = "sent"
             await session.commit()
             now = datetime.now().strftime("%H:%M %d.%m")
-            await notify_owner(f"✅ Запланированный пост опубликован в *{escape_markdown(ch['name'])}* в {now}")
+            safe_name = escape_markdown(ch["name"])
+            await notify_owner(f"✅ Запланированный пост опубликован в *{safe_name}* в {now}")
         except TelegramError as e:
-            await notify_owner(f"❌ Ошибка публикации запланированного поста (id {post.id}) в *{escape_markdown(ch['name'])}*: {str(e)}")
+            safe_name = escape_markdown(ch["name"])
+            await notify_owner(f"❌ Ошибка публикации запланированного поста (id {post.id}) в *{safe_name}*: {escape_markdown(str(e))}")
 
 def _build_caption(text: str, signature: str) -> str:
     if text:
