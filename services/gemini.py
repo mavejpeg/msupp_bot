@@ -5,8 +5,7 @@ from config import GEMINI_API_KEY
 logger = logging.getLogger(__name__)
 genai.configure(api_key=GEMINI_API_KEY)
 
-# Используем актуальную бесплатную модель
-MODEL_NAME = "gemini-1.5-flash-8b"   # или "gemini-2.0-flash-exp" для экспериментальной
+MODEL_NAME = "gemini-2.0-flash-exp"  # Рабочая бесплатная модель
 model = genai.GenerativeModel(MODEL_NAME)
 
 SYSTEM_PROMPT = (
