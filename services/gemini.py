@@ -4,7 +4,10 @@ from config import GEMINI_API_KEY
 
 logger = logging.getLogger(__name__)
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+
+# Используем актуальную бесплатную модель
+MODEL_NAME = "gemini-1.5-flash-8b"   # или "gemini-2.0-flash-exp" для экспериментальной
+model = genai.GenerativeModel(MODEL_NAME)
 
 SYSTEM_PROMPT = (
     "Улучши текст для Telegram-поста: сделай его живым, лаконичным, с характером. "
@@ -20,7 +23,7 @@ async def improve_text(text: str) -> str:
         if improved and improved != text:
             return improved
         else:
-            logger.warning("Gemini вернул пустой или тот же текст")
+            logger.warning("Gemini вернул пустой или идентичный текст")
             return text
     except Exception as e:
         logger.error(f"Gemini error: {e}", exc_info=True)
