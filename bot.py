@@ -1,4 +1,5 @@
 import logging
+import nest_asyncio
 from telegram.ext import ApplicationBuilder
 from config import BOT_TOKEN
 from database import init_db
@@ -7,6 +8,7 @@ from handlers.post import post_conversation
 from handlers.admin import handlers as admin_handlers
 from handlers.queue import queue_handler
 
+nest_asyncio.apply()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
