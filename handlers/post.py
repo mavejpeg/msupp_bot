@@ -230,6 +230,7 @@ async def schedule_post(update, context, time_str):
 post_conversation = ConversationHandler(
     entry_points=[
         CommandHandler("post", start_post),
+        MessageHandler(filters.Regex("^📝 Новая публикация$"), start_post),
     ],
     states={
         CHOOSE_CHANNEL: [CallbackQueryHandler(channel_chosen, pattern=r"^ch:\d$")],
@@ -248,6 +249,7 @@ post_conversation = ConversationHandler(
         CUSTOM_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, custom_time_input)],
     },
     fallbacks=[CommandHandler("cancel", lambda u, c: ConversationHandler.END)],
-    persistent=True,   # ← включаем поддержку persistence
+    allow_reentry=True,          # <-- можно начинать новый пост, даже если старый не завершён
+    persistent=True,             # <-- сохранять состояние в PicklePersistence
     name="post_conversation",
 )
