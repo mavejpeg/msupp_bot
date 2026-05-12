@@ -248,4 +248,6 @@ post_conversation = ConversationHandler(
         CUSTOM_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, custom_time_input)],
     },
     fallbacks=[CommandHandler("cancel", lambda u, c: ConversationHandler.END)],
+    persistent=True,   # ← включаем поддержку persistence
+    name="post_conversation",
 )
