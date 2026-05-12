@@ -1,6 +1,8 @@
 import logging
+import asyncio
 import nest_asyncio
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
+from telegram.error import Conflict
 
 from config import BOT_TOKEN
 from database import init_db
@@ -16,9 +18,7 @@ logger = logging.getLogger(__name__)
 
 async def handle_new_post_button(update, context):
     """Обрабатывает нажатие кнопки '📝 Новая публикация' где угодно."""
-    # Очищаем все данные предыдущего диалога (если был)
     context.user_data.clear()
-    # Запускаем тот же сценарий, что и /post
     await start_post(update, context)
 
 async def main():
@@ -28,9 +28,8 @@ async def main():
 
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     
-    # Отдельный обработчик для кнопки из Reply-клавиатуры (работает всегда)
+    # Кнопки из Reply-клавиатуры (обрабатываются всегда, даже если диалог не активен)
     app.add_handler(MessageHandler(filters.Regex("^📝 Новая публикация$"), handle_new_post_button))
-    # Очередь – аналогично
     app.add_handler(MessageHandler(filters.Regex("^📋 Очередь$"), show_queue))
     
     # Основные обработчики
@@ -41,8 +40,17 @@ async def main():
     app.add_handler(CommandHandler("start", start))
 
     logger.info("Бот запущен через polling")
-    await app.run_polling(drop_pending_updates=True)
+    
+    # Автоматический перезапуск при Conflict (если Railway не убил старый контейнер)
+    while True:
+        try:
+            await app.run_polling(drop_pending_updates=True)
+        except Conflict as e:
+            logger.error(f"Conflict: {e}. Перезапуск через 5 секунд...")
+            await asyncio.sleep(5)
+        except Exception as e:
+            logger.error(f"Критическая ошибка: {e}")
+            break
 
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(main())
