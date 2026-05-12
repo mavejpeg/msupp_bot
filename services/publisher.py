@@ -1,6 +1,7 @@
+import re
 import logging
 from datetime import datetime
-from telegram import Bot
+from telegram import Bot, InputMediaPhoto
 from telegram.constants import ParseMode
 from telegram.error import TelegramError
 from config import BOT_TOKEN, OWNER_ID, CHANNEL_1_ID, CHANNEL_2_ID, CHANNEL_3_ID, CHANNEL_1_LINK, CHANNEL_2_LINK, CHANNEL_3_LINK
@@ -10,35 +11,49 @@ from sqlalchemy import update
 logger = logging.getLogger(__name__)
 bot = Bot(token=BOT_TOKEN)
 
+# Функция экранирования для Markdown
+def escape_markdown(text: str) -> str:
+    """Экранирует символы, ломающие Markdown-разметку."""
+    escape_chars = r'`\'
+    return re.sub(f'([{re.escape(escape_chars)}])', r'\\\1', text)
+
+# Определения каналов
 CHANNELS = {
     1: {
         "id": CHANNEL_1_ID,
         "name": "Лайфстайл",
         "link": CHANNEL_1_LINK,
-        "sign": f"[Артём хз]({CHANNEL_1_LINK}) | Подписаться"
+        # Вся строка становится одной ссылкой
+        "sign": f"[Артём хз | Подписаться]({CHANNEL_1_LINK})"
     },
     2: {
         "id": CHANNEL_2_ID,
         "name": "Веб-дизайн",
         "link": CHANNEL_2_LINK,
-        "sign": f"[Arto.ism]({CHANNEL_2_LINK}) | Подписаться"
+        # Если ссылка ведет на "Arto_isme", то так и останется
+        "sign": f"[Arto.ism | Подписаться]({CHANNEL_2_LINK})"
     },
     3: {
         "id": CHANNEL_3_ID,
         "name": "Новости",
         "link": CHANNEL_3_LINK,
-        "sign": f"[ЧЁ]({CHANNEL_3_LINK}) | Подписаться"
+        "sign": f"[ЧЁ | Подписаться]({CHANNEL_3_LINK})"
     },
 }
 
 async def notify_owner(text: str):
     try:
-        await bot.send_message(chat_id=OWNER_ID, text=text, parse_mode=ParseMode.MARKDOWN)
+        safe_text = escape_markdown(text)
+        await bot.send_message(chat_id=OWNER_ID, text=safe_text, parse_mode=ParseMode.MARKDOWN)
     except Exception as e:
         logger.error(f"Failed to notify owner: {e}")
+        # Попытка отправить без форматирования
+        try:
+            await bot.send_message(chat_id=OWNER_ID, text=text)
+        except Exception as e2:
+            logger.error(f"Failed to send plain text to owner: {e2}")
 
 async def publish_now(post_data: dict, creator_id: int):
-    """Немедленная публикация поста"""
     ch_num = post_data["channel"]
     ch = CHANNELS[ch_num]
     caption = _build_caption(post_data.get("text", ""), ch["sign"])
@@ -55,21 +70,17 @@ async def publish_now(post_data: dict, creator_id: int):
             media_group[0].parse_mode = ParseMode.MARKDOWN
             await bot.send_media_group(chat_id=ch["id"], media=media_group)
         now = datetime.now().strftime("%H:%M %d.%m")
-        await notify_owner(f"✅ Пост опубликован в *{ch['name']}* в {now}")
+        await notify_owner(f"✅ Пост опубликован в *{escape_markdown(ch['name'])}* в {now}")
     except TelegramError as e:
-        await notify_owner(f"❌ Ошибка публикации в *{ch['name']}*: {str(e)}")
+        await notify_owner(f"❌ Ошибка публикации в *{escape_markdown(ch['name'])}*: {str(e)}")
         raise
 
 async def publish_scheduled(post_id: int):
-    """Вызывается планировщиком"""
     async with async_session() as session:
         post = await session.get(ScheduledPost, post_id)
         if not post or post.status != "pending":
             return
-        ch_num = post.channel_id
-        # для этого нужно маппирование channel_id на номер; сохраним удобнее
-        # будем хранить channel_code (1/2/3) в БД
-        ch = CHANNELS[post.channel_id]  # если channel_id это код 1/2/3
+        ch = CHANNELS[post.channel_id]
         caption = _build_caption(post.content_text or "", ch["sign"])
         media_ids = post.media_file_ids or []
         media_type = post.media_type
@@ -86,9 +97,9 @@ async def publish_scheduled(post_id: int):
             post.status = "sent"
             await session.commit()
             now = datetime.now().strftime("%H:%M %d.%m")
-            await notify_owner(f"✅ Запланированный пост опубликован в *{ch['name']}* в {now}")
+            await notify_owner(f"✅ Запланированный пост опубликован в *{escape_markdown(ch['name'])}* в {now}")
         except TelegramError as e:
-            await notify_owner(f"❌ Ошибка публикации запланированного поста (id {post.id}) в *{ch['name']}*: {str(e)}")
+            await notify_owner(f"❌ Ошибка публикации запланированного поста (id {post.id}) в *{escape_markdown(ch['name'])}*: {str(e)}")
 
 def _build_caption(text: str, signature: str) -> str:
     if text:
