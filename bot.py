@@ -1,16 +1,14 @@
 import logging
 import nest_asyncio
-from telegram.ext import ApplicationBuilder, CommandHandler
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
 
 from config import BOT_TOKEN
 from database import init_db
 from scheduler import scheduler, restore_scheduled_posts
 from handlers.post import post_conversation
 from handlers.admin import handlers as admin_handlers
-from handlers.queue import queue_handler
-from handlers.start import start
-from telegram.ext import MessageHandler, filters
 from handlers.queue import show_queue
+from handlers.start import start
 
 nest_asyncio.apply()
 logging.basicConfig(level=logging.INFO)
@@ -23,12 +21,12 @@ async def main():
 
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(post_conversation)
-    app.add_handler(queue_handler)
+    app.add_handler(CommandHandler("queue", show_queue))
     for h in admin_handlers:
         app.add_handler(h)
     app.add_handler(CommandHandler("start", start))
+    # Кнопка "📋 Очередь" из Reply‑клавиатуры
     app.add_handler(MessageHandler(filters.Regex("^📋 Очередь$"), show_queue))
-    app.add_handler(CommandHandler("queue", show_queue))
 
     logger.info("Бот запущен через polling")
     await app.run_polling(drop_pending_updates=True)
