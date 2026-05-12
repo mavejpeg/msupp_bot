@@ -182,7 +182,7 @@ async def time_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     if query.data.startswith("time:"):
-        time_str = query.data.split(":")[1]
+         time_str = query.data.split(":", 1)[1]
         await schedule_post(update, context, time_str)
         return ConversationHandler.END
     elif query.data == "custom_time":
