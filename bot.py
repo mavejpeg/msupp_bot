@@ -7,6 +7,7 @@ from scheduler import scheduler, restore_scheduled_posts
 from handlers.post import post_conversation
 from handlers.admin import handlers as admin_handlers
 from handlers.queue import queue_handler
+from handlers.start import start
 
 nest_asyncio.apply()
 logging.basicConfig(level=logging.INFO)
@@ -20,6 +21,7 @@ async def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(post_conversation)
     app.add_handler(queue_handler)
+    app.add_handler(CommandHandler("start", start))
     for h in admin_handlers:
         app.add_handler(h)
 
