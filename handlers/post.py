@@ -14,6 +14,7 @@ from services.gemini import improve_text
 from services.publisher import publish_now, CHANNELS, _build_caption, notify_owner
 from database import async_session, ScheduledPost
 from scheduler import add_scheduled_job
+from telegram.ext import filters
 
 logger = logging.getLogger(__name__)
 
@@ -240,7 +241,10 @@ async def schedule_post(update, context, time_str):
 
 
 post_conversation = ConversationHandler(
-    entry_points=[CommandHandler("post", start_post)],
+    entry_points=[
+        CommandHandler("post", start_post),
+        MessageHandler(filters.Regex("^📝 Новая публикация$"), start_post)
+    ],
     states={
         CHOOSE_CHANNEL: [CallbackQueryHandler(channel_chosen, pattern=r"^ch:\d$")],
         CONTENT: [
