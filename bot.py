@@ -28,6 +28,7 @@ async def main():
         app.add_handler(h)
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.Regex("^📋 Очередь$"), show_queue))
+    app.add_handler(CommandHandler("queue", show_queue))
 
     logger.info("Бот запущен через polling")
     await app.run_polling(drop_pending_updates=True)
