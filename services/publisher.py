@@ -11,9 +11,24 @@ logger = logging.getLogger(__name__)
 bot = Bot(token=BOT_TOKEN)
 
 CHANNELS = {
-    1: {"id": CHANNEL_1_ID, "name": "Лайфстайл", "link": CHANNEL_1_LINK, "sign": "[Артём хз](t.me/CHANNEL_1_LINK) | Подписаться"},
-    2: {"id": CHANNEL_2_ID, "name": "Веб-дизайн", "link": CHANNEL_2_LINK, "sign": "[Arto.ism](t.me/CHANNEL_2_LINK) | Подписаться"},
-    3: {"id": CHANNEL_3_ID, "name": "Новости", "link": CHANNEL_3_LINK, "sign": "[ЧЁ](t.me/CHANNEL_3_LINK) | Подписаться"},
+    1: {
+        "id": CHANNEL_1_ID,
+        "name": "Лайфстайл",
+        "link": CHANNEL_1_LINK,
+        "sign": f"[Артём хз]({CHANNEL_1_LINK}) | Подписаться"
+    },
+    2: {
+        "id": CHANNEL_2_ID,
+        "name": "Веб-дизайн",
+        "link": CHANNEL_2_LINK,
+        "sign": f"[Arto.ism]({CHANNEL_2_LINK}) | Подписаться"
+    },
+    3: {
+        "id": CHANNEL_3_ID,
+        "name": "Новости",
+        "link": CHANNEL_3_LINK,
+        "sign": f"[ЧЁ]({CHANNEL_3_LINK}) | Подписаться"
+    },
 }
 
 async def notify_owner(text: str):
