@@ -2,7 +2,7 @@ from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import CommandHandler, ContextTypes
 
 MAIN_KEYBOARD = ReplyKeyboardMarkup(
-    [["/post", "/queue"]],
+    [["Новый пост", "Очередь"]],
     resize_keyboard=True,
     is_persistent=True
 )
