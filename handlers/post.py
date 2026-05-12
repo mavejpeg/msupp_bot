@@ -14,17 +14,14 @@ from services.gemini import improve_text
 from services.publisher import publish_now, CHANNELS, _build_caption, notify_owner
 from database import async_session, ScheduledPost
 from scheduler import add_scheduled_job
-from telegram.ext import filters
 
 logger = logging.getLogger(__name__)
 
 CHOOSE_CHANNEL, CONTENT, AI_CHOICE, PREVIEW, SCHEDULE_DATE, SCHEDULE_TIME, CUSTOM_TIME = range(7)
 
-
 async def start_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Выберите канал:", reply_markup=channel_selection())
     return CHOOSE_CHANNEL
-
 
 async def channel_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -33,7 +30,6 @@ async def channel_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["channel"] = channel
     await query.edit_message_text(f"Выбран канал: {CHANNELS[channel]['name']}\nТеперь отправьте контент (текст, фото, альбом).")
     return CONTENT
-
 
 async def receive_content(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
@@ -55,22 +51,22 @@ async def receive_content(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         return await show_preview(update, context)
 
-
 async def media_group_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.user_data.get("album_collected"):
         context.user_data["album_collected"] = True
-        context.user_data["media"] = [msg.photo[-1].file_id for msg in update.message.photo]
-        first_caption = update.message.caption
-        if first_caption:
-            context.user_data["text"] = first_caption
+        # Собираем все фото из медиагруппы
+        media_group = update.message.photo
+        context.user_data["media"] = [p[-1].file_id for p in media_group]
         context.user_data["media_type"] = "album"
+        caption = update.message.caption
+        if caption:
+            context.user_data["text"] = caption
         if context.user_data.get("text"):
             await update.message.reply_text("Хотите улучшить текст с помощью AI?", reply_markup=ai_options())
             return AI_CHOICE
         else:
             return await show_preview(update, context)
     return None
-
 
 async def ai_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -90,14 +86,12 @@ async def ai_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return PREVIEW
     return await show_preview(update, context)
 
-
 async def ai_result_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     if query.data == "take_improved":
         context.user_data["text"] = context.user_data["improved_text"]
     return await show_preview(update, context)
-
 
 async def show_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ch = CHANNELS[context.user_data["channel"]]
@@ -135,11 +129,9 @@ async def show_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=preview_actions(),
             reply_to_message_id=messages[0].message_id
         )
-    # Удаляем предыдущее сообщение с вопросом AI, если есть
     if update.callback_query:
         await update.callback_query.message.delete()
     return PREVIEW
-
 
 async def preview_actions_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -147,7 +139,8 @@ async def preview_actions_handler(update: Update, context: ContextTypes.DEFAULT_
     action = query.data
     if action == "publish_now":
         await publish_now(context.user_data, update.effective_user.id)
-        await notify_owner(f"📝 Редактор @{update.effective_user.username} создал пост в *{CHANNELS[context.user_data['channel']]['name']}*")
+        ch = CHANNELS[context.user_data["channel"]]
+        await notify_owner(f"📝 Редактор @{update.effective_user.username} создал пост в *{ch['name']}*")
         await query.edit_message_text("✅ Опубликовано!")
         return ConversationHandler.END
     elif action == "schedule":
@@ -161,11 +154,9 @@ async def preview_actions_handler(update: Update, context: ContextTypes.DEFAULT_
         await query.edit_message_text("Отменено.")
         return ConversationHandler.END
 
-
 def generate_dates():
     today = datetime.now().date()
     return [(today + timedelta(days=i)).strftime("%d.%m") for i in range(1, 15)]
-
 
 async def date_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -178,12 +169,11 @@ async def date_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "back_to_preview":
         return await show_preview(update, context)
 
-
 async def time_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     if query.data.startswith("time:"):
-        time_str = query.data.split(":", 1)[1]            # <-- ПРАВИЛЬНОЕ ИЗВЛЕЧЕНИЕ
+        time_str = query.data.split(":", 1)[1]
         await schedule_post(update, context, time_str)
         return ConversationHandler.END
     elif query.data == "custom_time":
@@ -192,7 +182,6 @@ async def time_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "back_to_dates":
         await query.edit_message_text("Выберите дату:", reply_markup=date_selection(generate_dates()))
         return SCHEDULE_DATE
-
 
 async def custom_time_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     time_str = update.message.text.strip()
@@ -203,7 +192,6 @@ async def custom_time_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return CUSTOM_TIME
     await schedule_post(update, context, time_str)
     return ConversationHandler.END
-
 
 async def schedule_post(update, context, time_str):
     date_str = context.user_data["scheduled_date"]
@@ -231,14 +219,13 @@ async def schedule_post(update, context, time_str):
         post_id = post.id
 
     await add_scheduled_job(post_id, scheduled_dt)
-    await notify_owner(
-        f"📝 Редактор @{update.effective_user.username} запланировал пост в *{ch['name']}* на {scheduled_dt.strftime('%d.%m %H:%M')}"
-    )
+    safe_name = ch["name"]   # publisher сам экранирует, если надо
+    safe_username = update.effective_user.username or ""
+    await notify_owner(f"📝 Редактор @{safe_username} запланировал пост в *{safe_name}* на {scheduled_dt.strftime('%d.%m %H:%M')}")
     await update.effective_chat.send_message(
-        f"📅 Запланировано в *{ch['name']}* на {scheduled_dt.strftime('%d.%m %H:%M')}",
+        f"📅 Запланировано в *{safe_name}* на {scheduled_dt.strftime('%d.%m %H:%M')}",
         parse_mode=ParseMode.MARKDOWN
     )
-
 
 post_conversation = ConversationHandler(
     entry_points=[
@@ -249,8 +236,8 @@ post_conversation = ConversationHandler(
         CHOOSE_CHANNEL: [CallbackQueryHandler(channel_chosen, pattern=r"^ch:\d$")],
         CONTENT: [
             MessageHandler(filters.TEXT & ~filters.COMMAND, receive_content),
-            MessageHandler(filters.PHOTO, receive_content),
-            MessageHandler(filters.PHOTO, media_group_handler),
+            MessageHandler(filters.PHOTO & ~filters.COMMAND, receive_content),
+            MessageHandler(filters.PHOTO & ~filters.COMMAND, media_group_handler),
         ],
         AI_CHOICE: [CallbackQueryHandler(ai_choice, pattern=r"^ai_(skip|improve)$")],
         PREVIEW: [
