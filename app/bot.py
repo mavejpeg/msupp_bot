@@ -315,13 +315,14 @@ async def add_expense_amount(message: Message, state: FSMContext):
         person = person_from_user(message.from_user.id if message.from_user else None)
         person = override_person(message.text or "", person)
         comment = re.sub(r"(?<!\d)\d+(?:[\s_]?\d{3})*(?:[,.]\d{1,2})?(?!\d)", "", message.text or "").strip()
-        await add_transaction(session, "expense", amount, now_date(settings.tz), person, cat, comment, message.from_user.id if message.from_user else None)
+        tx = await add_transaction(session, "expense", amount, now_date(settings.tz), person, cat, comment, message.from_user.id if message.from_user else None)
         try:
-            await sheets.sync_all(session, now_date(settings.tz))
-        except Exception:
+            sheet_msg = await sheets.sync_transaction_to_main_sheet(tx, cat)
+        except Exception as e:
+            sheet_msg = f"Не смог записать в Google Sheets: {e}"
             log.exception("Sheets sync after expense failed")
     await state.clear()
-    await message.answer(f"✅ Расход добавлен: {money(amount)}\n{cat.name if cat else ''}", reply_markup=main_keyboard())
+    await message.answer(f"✅ Расход добавлен: {money(amount)}\n{cat.name if cat else ''}\n{sheet_msg}", reply_markup=main_keyboard())
 
 
 @router.message(F.text == "➕ Доход")
@@ -351,13 +352,14 @@ async def add_income_amount(message: Message, state: FSMContext):
     person = override_person(message.text or "", person)
     comment = re.sub(r"(?<!\d)\d+(?:[\s_]?\d{3})*(?:[,.]\d{1,2})?(?!\d)", "", message.text or "").strip()
     async with db.SessionLocal() as session:  # type: ignore[misc]
-        await add_transaction(session, "income", amount, now_date(settings.tz), person, None, comment, message.from_user.id if message.from_user else None)
+        tx = await add_transaction(session, "income", amount, now_date(settings.tz), person, None, comment, message.from_user.id if message.from_user else None)
         try:
-            await sheets.sync_all(session, now_date(settings.tz))
-        except Exception:
+            sheet_msg = await sheets.sync_transaction_to_main_sheet(tx, None)
+        except Exception as e:
+            sheet_msg = f"Не смог записать в Google Sheets: {e}"
             log.exception("Sheets sync after income failed")
     await state.clear()
-    await message.answer(f"✅ Доход добавлен: {money(amount)}", reply_markup=main_keyboard())
+    await message.answer(f"✅ Доход добавлен: {money(amount)}\n{sheet_msg}", reply_markup=main_keyboard())
 
 
 @router.message(F.text)
@@ -381,13 +383,14 @@ async def quick_input(message: Message):
             if not cat:
                 await message.answer("Не нашёл категорию. Лучше нажми «➕ Расход» и выбери из списка.", reply_markup=main_keyboard())
                 return
-        await add_transaction(session, "income" if is_income else "expense", amount, now_date(settings.tz), person, cat, comment, message.from_user.id if message.from_user else None)
+        tx = await add_transaction(session, "income" if is_income else "expense", amount, now_date(settings.tz), person, cat, comment, message.from_user.id if message.from_user else None)
         try:
-            await sheets.sync_all(session, now_date(settings.tz))
-        except Exception:
+            sheet_msg = await sheets.sync_transaction_to_main_sheet(tx, cat)
+        except Exception as e:
+            sheet_msg = f"Не смог записать в Google Sheets: {e}"
             log.exception("Sheets sync after quick input failed")
     await message.answer(
-        f"✅ {'Доход' if is_income else 'Расход'} добавлен: {money(amount)}" + (f"\n{cat.name}" if cat else ""),
+        f"✅ {'Доход' if is_income else 'Расход'} добавлен: {money(amount)}" + (f"\n{cat.name}" if cat else "") + f"\n{sheet_msg}",
         reply_markup=main_keyboard(),
     )
 
