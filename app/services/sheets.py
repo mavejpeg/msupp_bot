@@ -181,13 +181,19 @@ def _update_cell_user_entered(ws, row: int, col: int, value: str) -> None:
 
 
 def _income_category_candidates(tx: Transaction) -> list[str]:
-    text = f"{tx.comment or ''} {tx.person or ''}".lower().replace("ё", "е")
-    if "зп" in text or "зарплат" in text or "аванс" in text:
-        if "кирилл" in text or tx.person == "Кирилл":
-            return ["ЗП Кирилл"]
-        return ["ЗП Артём", "ЗП Артем"]
+    text = f"{tx.comment or ''}".lower().replace("ё", "е")
+
+    # Доход с Telegram аккаунта: определяем владельца автоматически
+    # Артём/Кирилл не должны попадать в "Разное"
     if "доп" in text or "подработ" in text or "фриланс" in text:
         return ["Доп. заработок", "Доп заработок"]
+
+    if tx.person == "Кирилл":
+        return ["ЗП Кирилл"]
+
+    if tx.person == "Артём":
+        return ["ЗП Артём", "ЗП Артем"]
+
     return ["Разное (родсвенники)", "Разное (родственники)", "Разное"]
 
 
