@@ -277,9 +277,15 @@ class SheetsSync:
         category_row = _best_row_by_category(values, category_start_row, category_col, category)
         if not category_row:
             raise RuntimeError(f"Не нашёл категорию «{category.name}» в блоке месяца на листе «Расходы»")
-
+        
         old = _get_cell_formula(ws, category_row, day_col)
-        new_value = _append_amount_to_cell(old, Decimal(str(tx.amount)))
+        amount = _amount_text(Decimal(str(tx.amount)))
+        if tx.comment:
+            new_value = f"{amount} ({tx.comment})"
+        else:
+            new_value = amount
+        if old:
+            new_value = f"{old}; {new_value}"
         _update_cell_user_entered(ws, category_row, day_col, new_value)
         return f"Записано в «Расходы»!{_rowcol_to_a1(category_row, day_col)}"
 
