@@ -17,7 +17,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from app.config import Settings, load_settings
-from app.db import SessionLocal, close_engine, create_schema, init_engine
+import app.db as db
 from app.keyboards import categories_keyboard, main_keyboard
 from app.models import Category
 from app.services.budget import (
@@ -208,7 +208,7 @@ async def summary_cmd(message: Message):
     if not await guard(message):
         return
     settings: Settings = message.bot.settings  # type: ignore[attr-defined]
-    async with SessionLocal() as session:  # type: ignore[misc]
+    async with db.SessionLocal() as session:  # type: ignore[misc]
         today = now_date(settings.tz)
         s = await month_summary(session, today)
         txt = await render_summary(session, today)
@@ -223,7 +223,7 @@ async def limits_cmd(message: Message):
     if not await guard(message):
         return
     settings: Settings = message.bot.settings  # type: ignore[attr-defined]
-    async with SessionLocal() as session:  # type: ignore[misc]
+    async with db.SessionLocal() as session:  # type: ignore[misc]
         await message.answer(await render_limits(session, now_date(settings.tz)), reply_markup=main_keyboard())
 
 
@@ -234,7 +234,7 @@ async def plan_cmd(message: Message):
         return
     settings: Settings = message.bot.settings  # type: ignore[attr-defined]
     month = parse_month_arg(message.text or "", now_date(settings.tz))
-    async with SessionLocal() as session:  # type: ignore[misc]
+    async with db.SessionLocal() as session:  # type: ignore[misc]
         await create_or_recalculate_plan(session, month)
         await message.answer(await render_plan(session, month), reply_markup=main_keyboard())
 
@@ -246,7 +246,7 @@ async def sync_cmd(message: Message):
         return
     settings: Settings = message.bot.settings  # type: ignore[attr-defined]
     sheets: SheetsSync = message.bot.sheets  # type: ignore[attr-defined]
-    async with SessionLocal() as session:  # type: ignore[misc]
+    async with db.SessionLocal() as session:  # type: ignore[misc]
         try:
             msg = await sheets.sync_all(session, now_date(settings.tz))
         except Exception as e:
@@ -261,7 +261,7 @@ async def export_cmd(message: Message):
     if not await guard(message):
         return
     settings: Settings = message.bot.settings  # type: ignore[attr-defined]
-    async with SessionLocal() as session:  # type: ignore[misc]
+    async with db.SessionLocal() as session:  # type: ignore[misc]
         path = await export_xlsx(session, now_date(settings.tz))
     await message.answer_document(FSInputFile(path, filename="family_budget_report.xlsx"), caption="Готово: Excel-отчёт")
 
@@ -271,7 +271,7 @@ async def export_cmd(message: Message):
 async def add_expense_start(message: Message, state: FSMContext):
     if not await guard(message):
         return
-    async with SessionLocal() as session:  # type: ignore[misc]
+    async with db.SessionLocal() as session:  # type: ignore[misc]
         labels, _ = await categories_labels(session)
     await state.set_state(AddExpense.category)
     await message.answer("Выбери категорию расхода:", reply_markup=categories_keyboard(labels))
@@ -285,7 +285,7 @@ async def add_expense_category(message: Message, state: FSMContext):
         await state.clear()
         await message.answer("Отменено", reply_markup=main_keyboard())
         return
-    async with SessionLocal() as session:  # type: ignore[misc]
+    async with db.SessionLocal() as session:  # type: ignore[misc]
         cat = await category_from_label(session, message.text or "")
     if not cat:
         await message.answer("Не понял категорию. Выбери кнопку или напиши номер категории.")
@@ -310,7 +310,7 @@ async def add_expense_amount(message: Message, state: FSMContext):
     data = await state.get_data()
     settings: Settings = message.bot.settings  # type: ignore[attr-defined]
     sheets: SheetsSync = message.bot.sheets  # type: ignore[attr-defined]
-    async with SessionLocal() as session:  # type: ignore[misc]
+    async with db.SessionLocal() as session:  # type: ignore[misc]
         cat = await session.get(Category, data["category_id"])
         person = person_from_user(message.from_user.id if message.from_user else None)
         person = override_person(message.text or "", person)
@@ -350,7 +350,7 @@ async def add_income_amount(message: Message, state: FSMContext):
     person = person_from_user(message.from_user.id if message.from_user else None)
     person = override_person(message.text or "", person)
     comment = re.sub(r"(?<!\d)\d+(?:[\s_]?\d{3})*(?:[,.]\d{1,2})?(?!\d)", "", message.text or "").strip()
-    async with SessionLocal() as session:  # type: ignore[misc]
+    async with db.SessionLocal() as session:  # type: ignore[misc]
         await add_transaction(session, "income", amount, now_date(settings.tz), person, None, comment, message.from_user.id if message.from_user else None)
         try:
             await sheets.sync_all(session, now_date(settings.tz))
@@ -374,7 +374,7 @@ async def quick_input(message: Message):
     is_income = text.lower().strip().startswith(("доход", "зп", "зарплата", "+доход"))
     person = override_person(text, person_from_user(message.from_user.id if message.from_user else None))
     comment = re.sub(r"(?<!\d)\d+(?:[\s_]?\d{3})*(?:[,.]\d{1,2})?(?!\d)", "", text).strip()
-    async with SessionLocal() as session:  # type: ignore[misc]
+    async with db.SessionLocal() as session:  # type: ignore[misc]
         cat = None
         if not is_income:
             cat = await find_category(session, text)
@@ -395,7 +395,7 @@ async def quick_input(message: Message):
 async def daily_report(bot: Bot):
     settings: Settings = bot.settings  # type: ignore[attr-defined]
     sheets: SheetsSync = bot.sheets  # type: ignore[attr-defined]
-    async with SessionLocal() as session:  # type: ignore[misc]
+    async with db.SessionLocal() as session:  # type: ignore[misc]
         today = now_date(settings.tz)
         s = await month_summary(session, today)
         spent_today = await today_total(session, today, "expense")
@@ -419,9 +419,9 @@ async def daily_report(bot: Bot):
 
 async def main():
     settings = load_settings()
-    init_engine(settings.database_url)
-    await create_schema()
-    async with SessionLocal() as session:  # type: ignore[misc]
+    db.init_engine(settings.database_url)
+    await db.create_schema()
+    async with db.SessionLocal() as session:  # type: ignore[misc]
         if settings.seed_on_start:
             await seed_database(session, settings.seed_path)
 
@@ -443,7 +443,7 @@ async def main():
     finally:
         scheduler.shutdown(wait=False)
         await bot.session.close()
-        await close_engine()
+        await db.close_engine()
 
 
 if __name__ == "__main__":
